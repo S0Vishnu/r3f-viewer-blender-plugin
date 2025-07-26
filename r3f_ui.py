@@ -2,14 +2,16 @@ import bpy
 import subprocess
 import os
 import json
+import socket
 from os import path
 from bpy.types import Operator, Panel
-
 from . import r3f_handlers
+
 
 class EXPORT_OT_r3f_scene_json(Operator):
     bl_idname = "export.r3f_scene_json"
     bl_label = "Export R3F Scene"
+    bl_description = "Export/Update all meshes, cameras, and lights to GLB and JSON for R3F viewer"
 
     def execute(self, context):
         cameras, lights, meshes = [], [], []
@@ -50,47 +52,45 @@ class EXPORT_OT_r3f_scene_json(Operator):
 
 class EXPORT_OT_r3f_clear_folder(Operator):
     bl_idname = "export.r3f_clear"
-    bl_label = "Clear Viewer Export Folder"
+    bl_label = "Clear Scene"
+    bl_description = "Remove all exported GLB and JSON files from the viewer export folder"
 
     def execute(self, context):
         r3f_handlers.clean_export_folder()
-        self.report({'INFO'}, "Viewer export folder cleared.")
+        self.report({'INFO'}, "Scene cleared.")
         return {'FINISHED'}
 
-# define port checking function
+
 def is_port_in_use(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('localhost', port)) == 0
 
+
 class EXPORT_OT_r3f_launch_app(Operator):
     bl_idname = "export.r3f_launch"
     bl_label = "Launch Viewer and Server"
+    bl_description = "Launch both the R3F viewer and backend server (npm + ts-node)"
 
     def execute(self, context):
         blend_dir = bpy.path.abspath("//")
         viewer_dir = os.path.join(blend_dir, "viewer")
         server_dir = os.path.join(blend_dir, "server")
 
-        # Ports used
         viewer_port = 4001
         server_port = 4000
 
         try:
-            # === Viewer ===
             if not is_port_in_use(viewer_port):
                 self.report({'INFO'}, "Launching Viewer...")
-                node_modules_path = os.path.join(viewer_dir, "node_modules")
-                if not os.path.exists(node_modules_path):
+                if not os.path.exists(os.path.join(viewer_dir, "node_modules")):
                     subprocess.check_call(["npm", "install"], cwd=viewer_dir)
                 subprocess.Popen(["npm", "run", "dev"], cwd=viewer_dir)
             else:
                 self.report({'INFO'}, f"Viewer already running on port {viewer_port}")
 
-            # === Server ===
             if not is_port_in_use(server_port):
                 self.report({'INFO'}, "Launching Node Server...")
-                node_modules_path = os.path.join(server_dir, "node_modules")
-                if not os.path.exists(node_modules_path):
+                if not os.path.exists(os.path.join(server_dir, "node_modules")):
                     subprocess.check_call(["npm", "install"], cwd=server_dir)
                 subprocess.Popen(["npx", "ts-node", "server.ts"], cwd=server_dir)
             else:
@@ -124,9 +124,11 @@ classes = [
     EXPORT_PT_r3f_panel
 ]
 
+
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
+
 
 def unregister():
     for cls in reversed(classes):
