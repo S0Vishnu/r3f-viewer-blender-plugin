@@ -14,7 +14,7 @@ class EXPORT_OT_r3f_scene_json(Operator):
     def execute(self, context):
         cameras, lights, meshes = [], [], []
 
-        blend_dir = bpy.path.abspath("/")
+        blend_dir = bpy.path.abspath("//")
         export_dir = path.join(blend_dir, "viewer", "public", "exported_gltfs")
         os.makedirs(export_dir, exist_ok=True)
 
@@ -57,19 +57,49 @@ class EXPORT_OT_r3f_clear_folder(Operator):
         self.report({'INFO'}, "Viewer export folder cleared.")
         return {'FINISHED'}
 
+# define port checking function
+def is_port_in_use(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
 
 class EXPORT_OT_r3f_launch_app(Operator):
     bl_idname = "export.r3f_launch"
-    bl_label = "Launch Viewer (npm run dev)"
+    bl_label = "Launch Viewer and Server"
 
     def execute(self, context):
-        blend_dir = bpy.path.abspath("/")
-        viewer_dir = path.join(blend_dir, "viewer")
+        blend_dir = bpy.path.abspath("//")
+        viewer_dir = os.path.join(blend_dir, "viewer")
+        server_dir = os.path.join(blend_dir, "server")
+
+        # Ports used
+        viewer_port = 4001
+        server_port = 4000
+
         try:
-            subprocess.Popen(["npm", "run", "dev"], cwd=viewer_dir)
-            self.report({'INFO'}, "Viewer launched.")
+            # === Viewer ===
+            if not is_port_in_use(viewer_port):
+                self.report({'INFO'}, "Launching Viewer...")
+                node_modules_path = os.path.join(viewer_dir, "node_modules")
+                if not os.path.exists(node_modules_path):
+                    subprocess.check_call(["npm", "install"], cwd=viewer_dir)
+                subprocess.Popen(["npm", "run", "dev"], cwd=viewer_dir)
+            else:
+                self.report({'INFO'}, f"Viewer already running on port {viewer_port}")
+
+            # === Server ===
+            if not is_port_in_use(server_port):
+                self.report({'INFO'}, "Launching Node Server...")
+                node_modules_path = os.path.join(server_dir, "node_modules")
+                if not os.path.exists(node_modules_path):
+                    subprocess.check_call(["npm", "install"], cwd=server_dir)
+                subprocess.Popen(["npx", "ts-node", "server.ts"], cwd=server_dir)
+            else:
+                self.report({'INFO'}, f"Server already running on port {server_port}")
+
         except Exception as e:
-            self.report({'ERROR'}, f"Failed to launch viewer: {e}")
+            self.report({'ERROR'}, f"Failed to launch apps: {e}")
+            return {'CANCELLED'}
+
         return {'FINISHED'}
 
 
